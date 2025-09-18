@@ -1,10 +1,11 @@
-                                                     |||||||||||||||||||||                 ||||||||||||||||||||||              ||||||||||||||||||||||           ||||||||||||||||||||||          ||||||||||||||||||||||
-                                                           
-                                                        Este, README, foi desenvolvido para todos aqueles amantes de redes, este tem como objectivo incentivar a metodologia IAC/Netdvops, 
-                                                        Autor: ELBER PEDRO  
-               
-                                                     |||||||||||||||||||||                 ||||||||||||||||||||||              ||||||||||||||||||||||           ||||||||||||||||||||||          ||||||||||||||||||||||
+                                         |||||||||||||||||||||                 ||||||||||||||||||||||              ||||||||||||||||||||||                    
 
+                                                           
+                                                          Este, README, foi desenvolvido para todos aqueles amantes de redes, 
+                                                          este tem como objectivo incentivar a metodologia IAC/Netdvops, 
+                                                          Autor: ELBER PEDRO  
+               
+                                         |||||||||||||||||||||                 ||||||||||||||||||||||              ||||||||||||||||||||||                  
 
 
 # Ansible_TCC
@@ -33,9 +34,7 @@ Dá 2 IPs válidos (um para cada lado do link).
 
 É perfeito para links entre roteadores/switches de camada 3.
 
-___________________________________________________________________________                                                                                                                       ___________________________________________________________________________
-                                                                                                   ___________________________________________________________________________
-
+____________________________________________________________________________   ___________________________________________________________________________                                                                                                                                                                                                                      
 Loopbacks /32
 
 ASA router-id: 10.255.255.1
@@ -78,11 +77,106 @@ WebServer (opcional): 10.10.10.4/24
 
 DHCP reserva/gateway: 10.10.10.1 (SVI DIST1)
 
-___________________________________________________________________________                                                                                                                       ___________________________________________________________________________
-                                                                                               ___________________________________________________________________________
+____________________________________________________________________________   ___________________________________________________________________________    
 
+enable
+conf t
+hostname ciscoasa
 
+! --------- Interfaces ---------
+interface Ethernet1
+ nameif Internet
+ security-level 0
+ ip address dhcp setroute
+ no shut
 
+interface Ethernet0
+ nameif IsptecSwCore1
+ security-level 100
+ ip address 10.255.0.1 255.255.255.252
+ no shut
+
+interface Ethernet2
+ nameif IsptecSwCore2
+ security-level 100
+ ip address 10.255.0.5 255.255.255.252
+ no shut
+
+! --------- OSPF (ASA 9.1.x) ---------
+router ospf 1
+ router-id 10.255.255.1
+ default-information originate always
+ ! ativa OSPF pelas redes das interfaces internas
+ network 10.255.0.0 255.255.255.252 area 0   ! Eth0/CORE1
+ network 10.255.0.4 255.255.255.252 area 0   ! Eth2/CORE2
+exit
+
+! --------- NAT inside -> Internet ---------
+object network ANY-IN-CORE1
+ subnet 0.0.0.0 0.0.0.0
+ nat (IsptecSwCore1,Internet) dynamic interface
+!
+object network ANY-IN-CORE2
+ subnet 0.0.0.0 0.0.0.0
+ nat (IsptecSwCore2,Internet) dynamic interface
+
+end
+copy run start
+
+____________________________________________________________________________   ___________________________________________________________________________    
+
+Teste Para ver as rotas do OSSPF 
+
+show ospf neighbor
+show ospf interface
+show route | inc 0.0.0.0|10.10.
+show nat
+show xlate
+
+packet-tracer input IsptecSwCore1 tcp 10.10.10.10 12345 8.8.8.8 80
+
+CORE1 (IOSv L3)
+
+Interfaces (ajusta os Gi conforme o teu EVE):
+
+Eth0/0 ↔ ASA (10.255.0.2/30)
+Eth0/1 ↔ DIST1 (10.255.0.9/30)
+Eth1/0 ↔ DIST4 (10.255.0.17/30)
+
+____________________________________________________________________________   ___________________________________________________________________________    
+
+enable
+conf t
+hostname CORE1
+
+interface Loopback0
+ ip address 10.255.255.2 255.255.255.255
+
+interface GigabitEthernet0/0
+ desc to-ASA
+ ip address 10.255.0.2 255.255.255.252
+ no shut
+interface GigabitEthernet0/1
+ desc to-DIST1
+ ip address 10.255.0.9 255.255.255.252
+ no shut
+interface GigabitEthernet1/0
+ desc to-DIST4
+ ip address 10.255.0.17 255.255.255.252
+ no shut
+
+router ospf 1
+ router-id 10.255.255.2
+ passive-interface default
+ no passive-interface GigabitEthernet0/0
+ no passive-interface GigabitEthernet0/1
+ no passive-interface GigabitEthernet1/0
+ network 10.255.255.2 0.0.0.0 area 0
+ network 10.255.0.0 0.0.0.3 area 0
+ network 10.255.0.8 0.0.0.3 area 0
+ network 10.255.0.16 0.0.0.3 area 0
+end
+wr
 
 
 
